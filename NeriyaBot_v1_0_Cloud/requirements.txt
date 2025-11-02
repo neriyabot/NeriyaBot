@@ -1,0 +1,8 @@
+python-binance>=1.0.19
+pandas>=2.0.0
+numpy>=1.24.0
+ta>=0.11.0
+pydantic>=2.6.0
+python-dotenv>=1.0.1
+PyYAML>=6.0.1
+Flask>=3.0.0
