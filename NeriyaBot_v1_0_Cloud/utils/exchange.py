@@ -8,34 +8,26 @@ class BinanceExchange:
     def __init__(self, recv_window=5000):
         self.api_key = os.getenv("BINANCE_API_KEY") or ""
         self.api_secret = os.getenv("BINANCE_API_SECRET") or ""
-        
-        # בדוק אם במצב DEMO
-        mode = os.getenv("BOT_MODE", "DEMO")
-        
-        if mode.upper() == "DEMO":
+        mode = os.getenv("BOT_MODE", "DEMO").upper()
+
+        if mode == "DEMO":
             print("[MODE] Running on Binance TESTNET (demo mode)")
             self.client = Client(self.api_key, self.api_secret, testnet=True)
-            self.client.API_URL = "https://testnet.binance.vision/api"
+            # חשוב מאוד! בלי /api בסוף
+            self.client.API_URL = "https://testnet.binance.vision"
         else:
             print("[MODE] Running on Binance LIVE (real mode)")
             self.client = Client(self.api_key, self.api_secret)
-            self.client.API_URL = "https://api.binance.com"        
-            self.recv_window = recv_window
+            self.client.API_URL = "https://api.binance.com"
 
-    def get_klines(self, symbol: str, interval: str="5m", limit: int=500):
+        try:
+            self.client.session.headers.update({"User-Agent": "neriya-bot/1.0"})
+        except Exception:
+            pass
+
+    def get_klines(self, symbol: str, interval: str = "5m", limit: int = 500):
         return self.client.get_klines(symbol=symbol, interval=interval, limit=limit)
 
     def get_balance(self, asset="USDT"):
         b = self.client.get_asset_balance(asset=asset)
         return float(b["free"])
-
-    def market_order(self, symbol: str, side: str, qty: float):
-        # LIVE orders. Be careful! Only used if mode == LIVE
-        order = self.client.create_order(
-            symbol=symbol,
-            side=side,
-            type='MARKET',
-            quantity=qty,
-            recvWindow=self.recv_window
-        )
-        return order
