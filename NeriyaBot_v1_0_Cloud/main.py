@@ -6,7 +6,7 @@ from ta.volatility import AverageTrueRange
 
 from utils.logger import log_print, append_csv
 from utils.risk import position_size_from_risk, hit_daily_loss_limit
-from utils.exchange import BinanceWrap
+from utils.exchange import BinanceExchange
 
 import strategies.scalping as strat_scalp
 import strategies.trend as strat_trend
