@@ -13,17 +13,14 @@ class BinanceExchange:
         if mode == "DEMO":
             print("[MODE] Running on Binance TESTNET (demo mode)")
             self.client = Client(self.api_key, self.api_secret, testnet=True)
-            # חשוב מאוד! בלי /api בסוף
+            # כתובת נכונה לדמו – בלי /api בסוף
             self.client.API_URL = "https://testnet.binance.vision"
         else:
             print("[MODE] Running on Binance LIVE (real mode)")
             self.client = Client(self.api_key, self.api_secret)
             self.client.API_URL = "https://api.binance.com"
 
-        try:
-            self.client.session.headers.update({"User-Agent": "neriya-bot/1.0"})
-        except Exception:
-            pass
+        self.recv_window = recv_window
 
     def get_klines(self, symbol: str, interval: str = "5m", limit: int = 500):
         return self.client.get_klines(symbol=symbol, interval=interval, limit=limit)
@@ -31,3 +28,4 @@ class BinanceExchange:
     def get_balance(self, asset="USDT"):
         b = self.client.get_asset_balance(asset=asset)
         return float(b["free"])
+        
