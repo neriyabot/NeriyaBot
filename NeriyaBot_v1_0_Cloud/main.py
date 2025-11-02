@@ -227,3 +227,15 @@ def run_background():
 if __name__ == "__main__":
     run_background()
     APP.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    from utils.exchange import BinanceExchange
+
+if __name__ == "__main__":
+    print("🚀 Starting NeriyaBot connection test...")
+
+    try:
+        exchange = BinanceExchange()
+        balance = exchange.get_balance("USDT")
+        print(f"✅ Connected to Binance Testnet successfully! USDT balance: {balance}")
+    except Exception as e:
+        print("❌ Connection failed!")
+        print(e)
