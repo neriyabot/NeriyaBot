@@ -19,7 +19,8 @@ class BinanceExchange:
         else:
             print("[MODE] Running on Binance LIVE (real mode)")
             self.client = Client(self.api_key, self.api_secret)
-            self.client.API_URL = "https://api.binance.com"        self.recv_window = recv_window
+            self.client.API_URL = "https://api.binance.com"        
+            self.recv_window = recv_window
 
     def get_klines(self, symbol: str, interval: str="5m", limit: int=500):
         return self.client.get_klines(symbol=symbol, interval=interval, limit=limit)
