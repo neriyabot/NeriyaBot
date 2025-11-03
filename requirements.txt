@@ -4,3 +4,4 @@ requests
 pandas
 websocket-client
 pybit==1.0.2
+PyYAML
