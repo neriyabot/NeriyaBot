@@ -1,5 +1,5 @@
 import os
-from binance.client import Client
+from binance.spot import Spot as Client  # ← שים לב: השורה הזאת מתוקנת
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,20 +12,19 @@ class BinanceExchange:
 
         if mode == "DEMO":
             print("[MODE] Running on Binance TESTNET (demo mode)")
-            self.client = Client(self.api_key, self.api_secret, testnet=True)
-            # כתובת נכונה לדמו – בלי /api בסוף
-            self.client.API_URL = "https://testnet.binance.vision"
+            self.client = Client(api_key=self.api_key, api_secret=self.api_secret, base_url="https://testnet.binance.vision")
         else:
             print("[MODE] Running on Binance LIVE (real mode)")
-            self.client = Client(self.api_key, self.api_secret)
-            self.client.API_URL = "https://api.binance.com"
+            self.client = Client(api_key=self.api_key, api_secret=self.api_secret)
 
         self.recv_window = recv_window
 
     def get_klines(self, symbol: str, interval: str = "5m", limit: int = 500):
-        return self.client.get_klines(symbol=symbol, interval=interval, limit=limit)
+        return self.client.klines(symbol=symbol, interval=interval, limit=limit)
 
     def get_balance(self, asset="USDT"):
-        b = self.client.get_asset_balance(asset=asset)
-        return float(b["free"])
-        
+        balances = self.client.user_asset()
+        for b in balances:
+            if b["asset"] == asset:
+                return float(b["free"])
+        return 0.0
