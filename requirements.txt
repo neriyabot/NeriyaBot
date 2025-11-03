@@ -3,4 +3,4 @@ python-dotenv
 requests
 pandas
 websocket-client
-pybit==5.6.1
+pybit==1.0.2
