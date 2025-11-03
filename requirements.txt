@@ -1,7 +1,5 @@
-flask
-python-dotenv
-requests
+ccxt
 pandas
-websocket-client
-pybit==5.6.2
-PyYAML
+numpy
+requests
+python-telegram-bot==13.15
