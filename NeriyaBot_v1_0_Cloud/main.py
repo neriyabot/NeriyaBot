@@ -239,3 +239,9 @@ if __name__ == "__main__":
     except Exception as e:
         print("❌ Connection failed!")
         print(e)
+        @app.route('/')
+def home():
+    return "NeriyaBot is running on Render ✅"
+
+if __name__ == "__main__":
+    APP.run(host="0.0.0.0", port=10000)
