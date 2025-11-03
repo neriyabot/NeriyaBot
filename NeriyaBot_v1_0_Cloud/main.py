@@ -42,8 +42,8 @@ try:
 except Exception:
     pass
 
-# ❗️זה השינוי הקריטי: מייבאים את BinanceExchange (לא BinanceWrap)
-from utils.exchange import BinanceExchange
+#
+from utils.exchange import BybitExchange as Exchange
 
 # אסטרטגיות (אם לא קיימות כרגע, נמשיך לרוץ ללא עצירה)
 try:
