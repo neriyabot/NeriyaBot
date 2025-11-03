@@ -1,5 +1,5 @@
 import os
-from binance.spot import Spot as Client  # ← שים לב: השורה הזאת מתוקנת
+from binance.spot import Spot as Client
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,7 +12,8 @@ class BinanceExchange:
 
         if mode == "DEMO":
             print("[MODE] Running on Binance TESTNET (demo mode)")
-           self.client = Client(api_key=self.api_key, api_secret=self.api_secret, base_url="https://testnet.binance.com")
+            self.client = Client(api_key=self.api_key, api_secret=self.api_secret,
+                                 base_url="https://testnet.binance.vision")
         else:
             print("[MODE] Running on Binance LIVE (real mode)")
             self.client = Client(api_key=self.api_key, api_secret=self.api_secret)
