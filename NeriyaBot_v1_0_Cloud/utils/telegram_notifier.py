@@ -1,30 +1,23 @@
-import os
+import asyncio
+from utils.exchange import Exchange
+from utils.telegram_notifier import run_telegram_bot
 import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from dotenv import load_dotenv
 
-load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+async def main():
+    try:
+        logging.info("🚀 NeriyaBot starting...")
+        exchange = Exchange(mode="DEMO")
+        logging.info("✅ Connected to Bybit successfully!")
+        # אפשר להוסיף כאן בהמשך לולאת מסחר או אסטרטגיה
+        while True:
+            await asyncio.sleep(10)
+    except Exception as e:
+        logging.error(f"❌ Error in main loop: {e}")
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ הבוט פעיל ומחובר ל-Bybit בהצלחה!\nמוכן לפעולה 💎")
-
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📊 כרגע אין עסקאות פתוחות. הבוט עוקב אחרי השוק...")
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    logging.error(msg="Exception while handling update:", exc_info=context.error)
-    if TELEGRAM_CHAT_ID:
-        await context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="❌ שגיאת מערכת. בדוק את הקונסול.")
-
-def run_telegram_bot():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("status", status))
-    app.add_error_handler(error_handler)
-    app.run_polling()
+if __name__ == "__main__":
+    import threading
+    telegram_thread = threading.Thread(target=run_telegram_bot)
+    telegram_thread.start()
+    asyncio.run(main())
