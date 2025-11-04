@@ -3,6 +3,7 @@ import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
@@ -25,10 +26,16 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     if TELEGRAM_CHAT_ID:
         await context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="❌ שגיאת מערכת. בדוק את הלוגים ב-Render.")
 
+# ✨ פונקציה חדשה – שליחת התראות בזמן אמת
+async def send_trade_alert(message: str):
+    from telegram import Bot
+    bot = Bot(token=TELEGRAM_TOKEN)
+    await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+
 def run_telegram_bot():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("help", help))
     app.add_error_handler(error_handler)
-    app.run_polling()v
+    app.run_polling()
