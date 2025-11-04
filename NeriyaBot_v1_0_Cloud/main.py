@@ -1,46 +1,40 @@
-import asyncio
+import os
 import logging
-from apscheduler.schedulers.background import BackgroundScheduler
+import ccxt
 from dotenv import load_dotenv
-
-from utils.exchange import Exchange
-from utils.daily_report import send_daily_report
-from utils.telegram_notifier import run_telegram_bot
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+class Exchange:
+    def __init__(self, mode):
+        self.mode = mode
+        self.api_key = os.getenv("BYBIT_API_KEY")
+        self.api_secret = os.getenv("BYBIT_API_SECRET")
 
-MODE = "DEMO"  # אפשר לשנות ל-REAL בהמשך
+        if not self.api_key or not self.api_secret:
+            raise ValueError("❌ API keys missing. Please set BYBIT_API_KEY and BYBIT_API_SECRET")
 
+        # הגדרת חיבור ל-Bybit Testnet או ל-Bybit אמיתי בהתאם למצב
+        if mode == "DEMO":
+            logging.info("🧪 Connecting to Bybit Testnet...")
+            self.client = ccxt.bybit({
+                "apiKey": self.api_key,
+                "secret": self.api_secret,
+                "enableRateLimit": True,
+                "options": {"defaultType": "spot"},
+                "urls": {"api": "https://api-testnet.bybit.com"},  # ✅ משתמש בשרת Testnet אמין
+            })
+            self.client.set_sandbox_mode(True)
+        else:
+            logging.info("💰 Connecting to Bybit LIVE environment...")
+            self.client = ccxt.bybit({
+                "apiKey": self.api_key,
+                "secret": self.api_secret,
+                "enableRateLimit": True,
+                "options": {"defaultType": "spot"},
+                "urls": {"api": "https://api.bybit.com"},  # ✅ שרת ה-LIVE הרגיל
+            })
 
-async def main_loop():
-    """לולאת המסחר הראשית – מפעילה את NeriyaBot Ultra+ ואת הדוח היומי"""
-    logging.info("🚀 NeriyaBot Ultra+ התחיל לעבוד...")
-
-    # אתחול האקסצ'יינג'
-    exchange = Exchange(mode=MODE)
-
-    # מתזמן לדוח יומי ב-23:00 לפי שעון ישראל
-    scheduler = BackgroundScheduler(timezone="Asia/Jerusalem")
-    scheduler.add_job(send_daily_report, "cron", hour=23, minute=0)
-    scheduler.start()
-    logging.info("📅 דוח יומי מתוזמן אוטומטית כל יום ב-23:00 (Asia/Jerusalem).")
-
-    # הרצת לולאת המסחר (async)
-    await exchange.run()
-
-
-if __name__ == "__main__":
-    import threading
-
-    # מפעילים את הבוט טלגרם בת'רד נפרד
-    tg_thread = threading.Thread(target=run_telegram_bot, daemon=True)
-    tg_thread.start()
-    logging.info("📲 בוט הטלגרם הופעל.")
-
-    # מפעילים את לולאת המסחר הראשית
-    asyncio.run(main_loop())
+        self.positions = {}
+        self.trade_log = []
+        logging.info("✅ NeriyaBot Ultra+ connected successfully!")
