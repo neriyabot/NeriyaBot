@@ -1,20 +1,35 @@
 import os
-import requests
+import ccxt
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+class Exchange:
+    def __init__(self, mode="DEMO"):
+        self.mode = mode
+        self.api_key = os.getenv("BYBIT_API_KEY")
+        self.api_secret = os.getenv("BYBIT_API_SECRET")
 
-async def send_trade_alert(message):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("⚠️ לא הוגדרו פרטי טלגרם.")
-        return
+        if not self.api_key or not self.api_secret:
+            raise ValueError("❌ Missing API keys! Check .env or Render Environment Variables.")
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-    try:
-        requests.post(url, data=data)
-    except Exception as e:
-        print(f"❌ שגיאה בשליחת הודעה לטלגרם: {e}")
+        self.client = ccxt.bybit({
+            "apiKey": self.api_key,
+            "secret": self.api_secret,
+            "enableRateLimit": True,
+            "options": {"defaultType": "spot"}
+        })
+
+        if mode == "DEMO":
+            self.client.set_sandbox_mode(True)
+
+        logging.info(f"✅ Connected to Bybit ({self.mode} mode)")
+
+    def get_balance(self):
+        try:
+            balance = self.client.fetch_balance()
+            return balance
+        except Exception as e:
+            logging.error(f"❌ Error fetching balance: {e}")
+            return None
