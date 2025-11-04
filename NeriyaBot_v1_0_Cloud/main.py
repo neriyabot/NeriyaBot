@@ -1,97 +1,124 @@
 import os
 import time
-import ccxt
-import requests
 from datetime import datetime
-import pandas as pd
 
-# === Environment Variables ===
-BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
-BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET")
-BOT_MODE = os.getenv("BOT_MODE", "TESTNET")  # TESTNET or LIVE
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+from utils.exchange import Exchange
+from strategies.pro_trend_strategy import ProTrendStrategy
+from telegram_notifier import send_telegram_message
 
-# === Exchange Setup ===
-if BOT_MODE.upper() == "TESTNET":
-    exchange = ccxt.bybit({
-        "apiKey": BYBIT_API_KEY,
-        "secret": BYBIT_API_SECRET,
-        "urls": {"api": {"public": "https://api-testnet.bybit.com",
-                         "private": "https://api-testnet.bybit.com"}}
-    })
-else:
-    exchange = ccxt.bybit({
-        "apiKey": BYBIT_API_KEY,
-        "secret": BYBIT_API_SECRET
-    })
 
-# === Settings ===
-TRADE_PERCENT = 0.05   # 5% per trade
-TIMEFRAME = "15m"      # 15 minutes candles
-STOP_LOSS = 0.97       # -3%
-TAKE_PROFIT = 1.06     # +6%
-PAIRS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT"]
+# === הגדרות כלליות ===
 
-# === Telegram Notification ===
-def send_telegram(msg):
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": msg}
-        requests.post(url, json=payload)
-    except Exception as e:
-        print(f"Telegram Error: {e}")
+MODE = os.getenv("BOT_MODE", "DEMO").upper()
 
-# === Trading Logic ===
-def get_ema(df, n):
-    return df["close"].ewm(span=n, adjust=False).mean()
+# רשימת מטבעות לסחר מקביל
+SYMBOLS = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+]
 
-def get_balance():
-    balance = exchange.fetch_balance()
-    return balance["USDT"]["free"]
+POLL_INTERVAL = 15  # כמה שניות בין בדיקות
 
-def trade_signal(symbol):
-    df = exchange.fetch_ohlcv(symbol, timeframe=TIMEFRAME, limit=50)
-    df = pd.DataFrame(df, columns=["time", "open", "high", "low", "close", "volume"])
-    df["EMA9"] = get_ema(df, 9)
-    df["EMA21"] = get_ema(df, 21)
+# === פונקציה עזר לעיצוב שם המטבע ===
+def format_symbol(symbol: str) -> str:
+    if symbol.endswith("USDT"):
+        base = symbol[:-4]
+        return f"{base}/USDT"
+    return symbol
 
-    if df["EMA9"].iloc[-2] < df["EMA21"].iloc[-2] and df["EMA9"].iloc[-1] > df["EMA21"].iloc[-1]:
-        return "BUY"
-    elif df["EMA9"].iloc[-2] > df["EMA21"].iloc[-2] and df["EMA9"].iloc[-1] < df["EMA21"].iloc[-1]:
-        return "SELL"
-    else:
-        return "HOLD"
 
-def execute_trade(symbol, side):
-    balance = get_balance()
-    amount = (balance * TRADE_PERCENT) / exchange.fetch_ticker(symbol)["last"]
+def main():
+    print(f"[{datetime.utcnow()}] 🚀 NeriyaBot התחיל לעבוד במצב: {MODE}")
 
-    order = exchange.create_market_order(symbol, side.lower(), amount)
-    price = order["average"]
-    msg = f"{'🟢 BUY' if side=='BUY' else '🔴 SELL'} {symbol} at {price:.2f}$"
-    print(msg)
-    send_telegram(msg)
+    exchange = Exchange(MODE)
+    strategy = ProTrendStrategy(
+        symbols=SYMBOLS,
+        risk_per_trade=0.05,   # 5% מהיתרה
+        take_profit_pct=0.06,  # טייק פרופיט 6%
+        stop_loss_pct=0.03,    # סטופ לוס 3%
+    )
 
-    stop_price = price * STOP_LOSS if side == "BUY" else price * TAKE_PROFIT
-    take_price = price * TAKE_PROFIT if side == "BUY" else price * STOP_LOSS
-
-    exchange.create_order(symbol, "take_profit_market", side.lower(), amount, take_price)
-    exchange.create_order(symbol, "stop_market", side.lower(), amount, stop_price)
-
-# === Main Loop ===
-print("🚀 NeriyaBot Pro AI is running...\n")
-send_telegram("🤖 NeriyaBot Pro AI started trading!")
-
-while True:
-    for pair in PAIRS:
+    while True:
         try:
-            signal = trade_signal(pair)
-            print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), pair, "→", signal)
-
-            if signal in ["BUY", "SELL"]:
-                execute_trade(pair, signal)
-
+            # 1️⃣ מביא יתרת USDT
+            balance_usdt = exchange.client.get_wallet_balance(accountType="UNIFIED")["result"]["list"][0]["totalEquity"]
+            balance_usdt = float(balance_usdt)
         except Exception as e:
-            print(f"Error with {pair}: {e}")
-    time.sleep(60)
+            print("❌ שגיאה בקריאת יתרה:", e)
+            time.sleep(POLL_INTERVAL)
+            continue
+
+        for symbol in SYMBOLS:
+            try:
+                # 2️⃣ מביא מחיר עדכני
+                price = exchange.get_last_price(symbol)
+                nice_symbol = format_symbol(symbol)
+
+                # 3️⃣ מעדכן היסטוריה
+                strategy.update_price(symbol, price)
+
+                # 4️⃣ בדיקה אם יש פוזיציה פתוחה וצריך לסגור אותה
+                exit_reason = strategy.check_exit(symbol, price)
+                if exit_reason:
+                    pos = strategy.open_positions.get(symbol)
+                    side = pos["side"]
+                    size_usdt = pos["size_usdt"]
+                    close_side = "SELL" if side == "BUY" else "BUY"
+
+                    try:
+                        exchange.create_market_order(symbol, close_side, size_usdt)
+                        strategy.close_position(symbol)
+                        msg = (
+                            f"✅ סגירת עסקה ({exit_reason})\n"
+                            f"צמד: {nice_symbol}\n"
+                            f"סגירה: {close_side}\n"
+                            f"מחיר: {price}\n"
+                        )
+                        print(msg)
+                        send_telegram_message(msg)
+                    except Exception as e:
+                        print(f"⚠️ שגיאה בסגירה עבור {symbol}: {e}")
+                    continue
+
+                # 5️⃣ מקבל סיגנל חדש
+                signal = strategy.get_trend_signal(symbol)
+
+                if signal == "HOLD":
+                    print(f"{datetime.utcnow()} - {nice_symbol}: HOLD (price={price})")
+                    continue
+
+                # 6️⃣ אם יש כבר פוזיציה באותו כיוון - מדלג
+                if not strategy.should_open_position(symbol, signal):
+                    continue
+
+                # 7️⃣ חישוב גודל עסקה
+                trade_size_usdt = strategy.get_position_size_usdt(balance_usdt)
+
+                # 8️⃣ פתיחת פוזיציה חדשה
+                exchange.create_market_order(symbol, signal, trade_size_usdt)
+                strategy.register_open_position(symbol, signal, price, trade_size_usdt)
+
+                msg = (
+                    f"🟢 פתיחת עסקה חדשה!\n"
+                    f"צמד: {nice_symbol}\n"
+                    f"סוג: {signal}\n"
+                    f"מחיר: {price}\n"
+                    f"גודל עסקה: {trade_size_usdt:.2f} USDT\n"
+                )
+                print(msg)
+                send_telegram_message(msg)
+
+            except Exception as e:
+                print(f"❌ שגיאה בעיבוד {symbol}: {e}")
+
+        # 9️⃣ הפסקה בין סבבים
+        time.sleep(POLL_INTERVAL)
+
+
+if __name__ == "__main__":
+    main()
