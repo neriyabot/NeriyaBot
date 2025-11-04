@@ -1,40 +1,29 @@
-import os
+import asyncio
 import logging
-import ccxt
-from dotenv import load_dotenv
+from exchange import Exchange
+from utils.telegram_notifier import send_trade_alert
 
-load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-class Exchange:
-    def __init__(self, mode):
-        self.mode = mode
-        self.api_key = os.getenv("BYBIT_API_KEY")
-        self.api_secret = os.getenv("BYBIT_API_SECRET")
+async def main():
+    logging.info("🚀 NeriyaBot Ultra+ starting up...")
 
-        if not self.api_key or not self.api_secret:
-            raise ValueError("❌ API keys missing. Please set BYBIT_API_KEY and BYBIT_API_SECRET")
+    # יצירת חיבור ל-Bybit במצב DEMO
+    exchange = Exchange(mode="DEMO")
 
-        # הגדרת חיבור ל-Bybit Testnet או ל-Bybit אמיתי בהתאם למצב
-        if mode == "DEMO":
-            logging.info("🧪 Connecting to Bybit Testnet...")
-            self.client = ccxt.bybit({
-                "apiKey": self.api_key,
-                "secret": self.api_secret,
-                "enableRateLimit": True,
-                "options": {"defaultType": "spot"},
-                "urls": {"api": "https://api-testnet.bybit.com"},  # ✅ משתמש בשרת Testnet אמין
-            })
-            self.client.set_sandbox_mode(True)
-        else:
-            logging.info("💰 Connecting to Bybit LIVE environment...")
-            self.client = ccxt.bybit({
-                "apiKey": self.api_key,
-                "secret": self.api_secret,
-                "enableRateLimit": True,
-                "options": {"defaultType": "spot"},
-                "urls": {"api": "https://api.bybit.com"},  # ✅ שרת ה-LIVE הרגיל
-            })
+    # לולאת הרצה אינסופית
+    while True:
+        try:
+            # כאן תוכל לשלב לוגיקת מסחר (RSI, EMA וכו’)
+            logging.info("🤖 Bot running... waiting for next signal")
 
-        self.positions = {}
-        self.trade_log = []
-        logging.info("✅ NeriyaBot Ultra+ connected successfully!")
+            # שלח עדכון לטלגרם כל 10 דקות (לדוגמה)
+            await send_trade_alert("✅ NeriyaBot Ultra+ פעיל ומחובר ל-Testnet")
+
+            await asyncio.sleep(600)  # 10 דקות
+        except Exception as e:
+            logging.error(f"❌ שגיאה בלולאה הראשית: {e}")
+            await asyncio.sleep(10)
+
+if __name__ == "__main__":
+    asyncio.run(main())
