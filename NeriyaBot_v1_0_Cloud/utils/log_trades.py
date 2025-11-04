@@ -1,27 +1,35 @@
-import csv
+import json
 import os
 from datetime import datetime
 
-LOG_FILE = "trade_history.csv"
+TRADES_FILE = "trades_log.json"
 
-class TradeLogger:
-    def __init__(self):
-        # אם אין קובץ – ניצור חדש עם כותרות
-        if not os.path.exists(LOG_FILE):
-            with open(LOG_FILE, mode="w", newline="") as file:
-                writer = csv.writer(file)
-                writer.writerow(["Date", "Symbol", "Action", "Amount(USDT)", "Price", "Status"])
+def log_trade(symbol, side, amount, price, profit_loss=None):
+    trade = {
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "symbol": symbol,
+        "side": side,
+        "amount": amount,
+        "price": price,
+        "profit_loss": profit_loss
+    }
 
-    def log_trade(self, symbol, action, amount_usdt, price, status="Completed"):
-        """שומר כל עסקה בקובץ"""
-        with open(LOG_FILE, mode="a", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow([
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                symbol,
-                action,
-                amount_usdt,
-                price,
-                status
-            ])
-        print(f"🧾 נרשמה עסקה: {action} ב־{symbol} ({amount_usdt}$ במחיר {price})")
+    trades = []
+    if os.path.exists(TRADES_FILE):
+        with open(TRADES_FILE, "r") as f:
+            trades = json.load(f)
+
+    trades.append(trade)
+
+    # שמירה מקומית
+    with open(TRADES_FILE, "w") as f:
+        json.dump(trades[-100:], f, indent=4)
+
+def get_last_trades(limit=5):
+    if not os.path.exists(TRADES_FILE):
+        return []
+
+    with open(TRADES_FILE, "r") as f:
+        trades = json.load(f)
+
+    return trades[-limit:]
