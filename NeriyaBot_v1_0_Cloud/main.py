@@ -2,18 +2,19 @@ import time
 from utils.exchange import Exchange
 from utils.telegram_notifier import TelegramNotifier
 from utils.log_trades import TradeLogger
+from utils.performance_chart import plot_and_send_performance
 from strategies.advanced_strategy import AdvancedStrategy
 
 # ===============================================
-# NeriyaBot Ultra – גרסה מלאה עם Take-Profit ו-Stop-Loss
+# NeriyaBot Ultra+ – עם Take Profit, Stop Loss וגרף אוטומטי לטלגרם
 # ===============================================
 
-print("🚀 NeriyaBot Ultra התחיל לפעול בהצלחה...")
+print("🚀 NeriyaBot Ultra+ התחיל לפעול בהצלחה...")
 
 # מצב עבודה: DEMO או REAL
 MODE = "DEMO"
 
-# אתחול מודולים
+# אתחול המודולים
 exchange = Exchange(MODE)
 notifier = TelegramNotifier()
 logger = TradeLogger()
@@ -29,11 +30,11 @@ COINS = [
     "DOGE/USDT"
 ]
 
-TRADE_PERCENT = 5  # אחוז מהיתרה בכל עסקה
-TAKE_PROFIT_PERCENT = 3  # מימוש רווח ב-3%
-STOP_LOSS_PERCENT = 1.5  # הפסד מקסימלי של 1.5%
+TRADE_PERCENT = 5          # אחוז מהיתרה לכל עסקה
+TAKE_PROFIT_PERCENT = 3    # רווח יעד (Take Profit)
+STOP_LOSS_PERCENT = 1.5    # הפסד מקסימלי (Stop Loss)
 
-open_trades = {}  # נעקוב אחרי עסקאות פתוחות
+open_trades = {}  # מעקב אחרי עסקאות פתוחות
 
 # =====================================================
 # פונקציית המסחר הראשית
@@ -50,21 +51,21 @@ def trade_logic():
         for coin in COINS:
             strategy = AdvancedStrategy(coin)
             action = strategy.generate_signal()
-
             ticker = exchange.exchange.fetch_ticker(coin)
             current_price = ticker['last']
 
-            # אם יש עסקה פתוחה – לבדוק אם צריך לסגור
+            # ============================
+            # ניהול עסקאות פתוחות
+            # ============================
             if coin in open_trades:
                 entry_price = open_trades[coin]["entry_price"]
                 side = open_trades[coin]["side"]
 
-                # חישוב אחוז שינוי מהכניסה
                 change_percent = ((current_price - entry_price) / entry_price) * 100 if side == "Buy" else ((entry_price - current_price) / entry_price) * 100
 
                 # Take Profit
                 if change_percent >= TAKE_PROFIT_PERCENT:
-                    notifier.send_message(f"💰 {coin}: רווח של {change_percent:.2f}%! סגירת עסקה.")
+                    notifier.send_message(f"💰 {coin}: רווח של {change_percent:.2f}% – סגירת עסקה ברווח.")
                     exchange.create_market_order(symbol=coin, side="Sell" if side == "Buy" else "Buy", quote_amount_usdt=TRADE_PERCENT)
                     logger.log_trade(coin, "TAKE_PROFIT", TRADE_PERCENT, current_price, "Success")
                     del open_trades[coin]
@@ -78,7 +79,9 @@ def trade_logic():
                     del open_trades[coin]
                     continue
 
-            # אם אין עסקה פתוחה – לבדוק אם יש אות חדש
+            # ============================
+            # פתיחת עסקאות חדשות
+            # ============================
             if action == "BUY" and coin not in open_trades:
                 notifier.send_message(f"🟢 פתיחת עסקת BUY ב־{coin}")
                 exchange.create_market_order(symbol=coin, side="Buy", quote_amount_usdt=TRADE_PERCENT)
@@ -92,7 +95,12 @@ def trade_logic():
                 logger.log_trade(coin, "SELL", TRADE_PERCENT, current_price, "Opened")
 
             else:
-                notifier.send_message(f"{coin}: אין שינוי כרגע.")
+                notifier.send_message(f"{coin}: אין שינוי מגמה כרגע.")
+
+        # ============================
+        # שליחת גרף ביצועים לטלגרם
+        # ============================
+        plot_and_send_performance()
 
         notifier.send_message("✅ סבב מסחר הסתיים בהצלחה.\n⏳ הבוט יבדוק שוב בעוד דקה.")
 
