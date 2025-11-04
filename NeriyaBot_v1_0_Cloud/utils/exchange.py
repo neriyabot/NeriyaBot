@@ -46,3 +46,33 @@ class Exchange:
         except Exception as e:
             print(f"❌ Failed to fetch balance: {e}")
             return 0.0
+def get_last_price(self, symbol: str) -> float:
+        """
+        מחזיר את המחיר האחרון של המטבע.
+        symbol לדוגמה: 'BTCUSDT'
+        """
+        resp = self.client.get_tickers(
+            category="spot",
+            symbol=symbol
+        )
+        price_str = resp["result"]["list"][0]["lastPrice"]
+        return float(price_str)
+
+    def create_market_order(self, symbol: str, side: str, quote_amount_usdt: float):
+        """
+        יוצר פקודת שוק לפי סכום בדולרים (USDT).
+        side: 'BUY' או 'SELL'
+        quote_amount_usdt – כמה דולרים להשקיע/למכור.
+        """
+        price = self.get_last_price(symbol)
+        qty = quote_amount_usdt / price
+        qty = round(qty, 4)
+
+        order = self.client.create_order(
+            category="spot",
+            symbol=symbol,
+            side=side,
+            orderType="Market",
+            qty=str(qty)
+        )
+        return order
