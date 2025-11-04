@@ -1,100 +1,97 @@
 import os
-import ccxt
 import time
-import logging
+import ccxt
 import requests
 from datetime import datetime
+import pandas as pd
 
-# ==========================
-# הגדרות ראשוניות
-# ==========================
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
-
-# סביבת עבודה (דמו או אמיתי)
-MODE = os.getenv("BOT_MODE", "DEMO")
-
-# קבלת מפתחות
+# === Environment Variables ===
 BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
 BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET")
+BOT_MODE = os.getenv("BOT_MODE", "TESTNET")  # TESTNET or LIVE
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")  # אפשר להוסיף אחר כך מזהה צ׳אט
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# הגדרה של הבורסה
-exchange = ccxt.bybit({
-    'apiKey': BYBIT_API_KEY,
-    'secret': BYBIT_API_SECRET,
-})
-exchange.set_sandbox_mode(MODE == "DEMO")
+# === Exchange Setup ===
+if BOT_MODE.upper() == "TESTNET":
+    exchange = ccxt.bybit({
+        "apiKey": BYBIT_API_KEY,
+        "secret": BYBIT_API_SECRET,
+        "urls": {"api": {"public": "https://api-testnet.bybit.com",
+                         "private": "https://api-testnet.bybit.com"}}
+    })
+else:
+    exchange = ccxt.bybit({
+        "apiKey": BYBIT_API_KEY,
+        "secret": BYBIT_API_SECRET
+    })
 
-# ==========================
-# פונקציות עזר
-# ==========================
+# === Settings ===
+TRADE_PERCENT = 0.05   # 5% per trade
+TIMEFRAME = "15m"      # 15 minutes candles
+STOP_LOSS = 0.97       # -3%
+TAKE_PROFIT = 1.06     # +6%
+PAIRS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT"]
 
-def send_telegram_message(message):
-    """שליחת הודעה לטלגרם"""
-    if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+# === Telegram Notification ===
+def send_telegram(msg):
+    try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-        try:
-            requests.post(url, data=data)
-        except Exception as e:
-            logging.error(f"שגיאה בשליחת הודעת טלגרם: {e}")
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": msg}
+        requests.post(url, json=payload)
+    except Exception as e:
+        print(f"Telegram Error: {e}")
+
+# === Trading Logic ===
+def get_ema(df, n):
+    return df["close"].ewm(span=n, adjust=False).mean()
 
 def get_balance():
-    """בדיקת יתרה"""
     balance = exchange.fetch_balance()
-    usdt = balance['total'].get('USDT', 0)
-    return usdt
+    return balance["USDT"]["free"]
 
-def get_signal(symbol):
-    """אסטרטגיית כניסה חכמה לפי מגמת גרף"""
-    ohlcv = exchange.fetch_ohlcv(symbol, timeframe='15m', limit=100)
-    closes = [c[4] for c in ohlcv]
+def trade_signal(symbol):
+    df = exchange.fetch_ohlcv(symbol, timeframe=TIMEFRAME, limit=50)
+    df = pd.DataFrame(df, columns=["time", "open", "high", "low", "close", "volume"])
+    df["EMA9"] = get_ema(df, 9)
+    df["EMA21"] = get_ema(df, 21)
 
-    ma_short = sum(closes[-5:]) / 5
-    ma_long = sum(closes[-20:]) / 20
-
-    if ma_short > ma_long:
+    if df["EMA9"].iloc[-2] < df["EMA21"].iloc[-2] and df["EMA9"].iloc[-1] > df["EMA21"].iloc[-1]:
         return "BUY"
-    elif ma_short < ma_long:
+    elif df["EMA9"].iloc[-2] > df["EMA21"].iloc[-2] and df["EMA9"].iloc[-1] < df["EMA21"].iloc[-1]:
         return "SELL"
     else:
         return "HOLD"
 
-def trade(symbol, signal, amount_percent=5):
-    """ביצוע עסקה לפי האות"""
+def execute_trade(symbol, side):
     balance = get_balance()
-    amount = (balance * amount_percent) / 100 / exchange.fetch_ticker(symbol)['last']
+    amount = (balance * TRADE_PERCENT) / exchange.fetch_ticker(symbol)["last"]
 
-    try:
-        if signal == "BUY":
-            order = exchange.create_market_buy_order(symbol, amount)
-            send_telegram_message(f"💎 קנייה בוצעה: {symbol} ({amount_percent}% מהיתרה)")
-        elif signal == "SELL":
-            order = exchange.create_market_sell_order(symbol, amount)
-            send_telegram_message(f"🔥 מכירה בוצעה: {symbol} ({amount_percent}% מהיתרה)")
-        else:
-            logging.info(f"{symbol} - אין פעולה כרגע")
-    except Exception as e:
-        logging.error(f"שגיאה בפעולה על {symbol}: {e}")
+    order = exchange.create_market_order(symbol, side.lower(), amount)
+    price = order["average"]
+    msg = f"{'🟢 BUY' if side=='BUY' else '🔴 SELL'} {symbol} at {price:.2f}$"
+    print(msg)
+    send_telegram(msg)
 
-# ==========================
-# לולאת הבוט הראשית
-# ==========================
+    stop_price = price * STOP_LOSS if side == "BUY" else price * TAKE_PROFIT
+    take_price = price * TAKE_PROFIT if side == "BUY" else price * STOP_LOSS
 
-symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    exchange.create_order(symbol, "take_profit_market", side.lower(), amount, take_price)
+    exchange.create_order(symbol, "stop_market", side.lower(), amount, stop_price)
 
-send_telegram_message("🚀 Neriya Bot הופעל בהצלחה!")
+# === Main Loop ===
+print("🚀 NeriyaBot Pro AI is running...\n")
+send_telegram("🤖 NeriyaBot Pro AI started trading!")
 
 while True:
-    try:
-        for symbol in symbols:
-            signal = get_signal(symbol)
-            logging.info(f"{symbol} - אות: {signal}")
-            trade(symbol, signal)
-            time.sleep(2)
+    for pair in PAIRS:
+        try:
+            signal = trade_signal(pair)
+            print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), pair, "→", signal)
 
-        time.sleep(60)
-    except Exception as e:
-        logging.error(f"שגיאה בלולאה הראשית: {e}")
-        time.sleep(30)
+            if signal in ["BUY", "SELL"]:
+                execute_trade(pair, signal)
+
+        except Exception as e:
+            print(f"Error with {pair}: {e}")
+    time.sleep(60)
