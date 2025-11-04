@@ -1,10 +1,11 @@
 import time
 from utils.exchange import Exchange
 from utils.telegram_notifier import TelegramNotifier
+from utils.log_trades import TradeLogger
 from strategies.advanced_strategy import AdvancedStrategy
 
 # ==============================
-# NeriyaBot PRO – גרסה מלאה
+# NeriyaBot PRO – גרסה מלאה וסופית
 # ==============================
 
 print("🚀 NeriyaBot PRO התחיל לעבוד בהצלחה...")
@@ -12,11 +13,12 @@ print("🚀 NeriyaBot PRO התחיל לעבוד בהצלחה...")
 # מצב עבודה: DEMO או REAL
 MODE = "DEMO"
 
-# אתחול המודולים
+# אתחול מודולים
 exchange = Exchange(MODE)
 notifier = TelegramNotifier()
+logger = TradeLogger()
 
-# רשימת המטבעות שהבוט יעקוב אחריהם
+# רשימת המטבעות שהבוט מנתח
 COINS = [
     "BTC/USDT",
     "ETH/USDT",
@@ -27,11 +29,11 @@ COINS = [
     "DOGE/USDT"
 ]
 
-TRADE_PERCENT = 5  # אחוז מהיתרה לשימוש בכל עסקה
+TRADE_PERCENT = 5  # אחוז מהיתרה בכל עסקה
 
-# =========================================================
-# פונקציית המסחר הראשית - ניתוח גרפים והחלטות קנייה/מכירה
-# =========================================================
+# =====================================================
+# פונקציית המסחר הראשית - ניתוח גרפים ופעולות חכמות
+# =====================================================
 def trade_logic():
     try:
         balance_data = exchange.get_balance()
@@ -48,13 +50,16 @@ def trade_logic():
             if action == "BUY":
                 notifier.send_message(f"🟢 זוהתה הזדמנות קנייה ב־{coin}")
                 exchange.create_market_order(symbol=coin, side="Buy", quote_amount_usdt=TRADE_PERCENT)
+                logger.log_trade(coin, "BUY", TRADE_PERCENT, "market", "Completed")
 
             elif action == "SELL":
                 notifier.send_message(f"🔴 זוהתה הזדמנות מכירה ב־{coin}")
                 exchange.create_market_order(symbol=coin, side="Sell", quote_amount_usdt=TRADE_PERCENT)
+                logger.log_trade(coin, "SELL", TRADE_PERCENT, "market", "Completed")
 
             else:
-                notifier.send_message(f"{coin} – אין שינוי מגמה כרגע.")
+                print(f"{coin} - אין שינוי מגמה כרגע.")
+                notifier.send_message(f"{coin} - אין שינוי מגמה כרגע.")
 
         notifier.send_message("✅ סבב מסחר הסתיים בהצלחה.\n⏳ הבוט יבדוק שוב בעוד דקה.")
 
@@ -62,9 +67,9 @@ def trade_logic():
         print(f"שגיאה כללית: {e}")
         notifier.send_message(f"❌ שגיאת מערכת: {e}")
 
-# =========================================================
-# לולאת עבודה אינסופית – הבוט פועל ברקע
-# =========================================================
+# =====================================================
+# לולאת עבודה מתמשכת
+# =====================================================
 while True:
     trade_logic()
-    time.sleep(60)  # כל דקה בודק מחדש את כל המטבעות
+    time.sleep(60)  # כל דקה בודק מחדש
