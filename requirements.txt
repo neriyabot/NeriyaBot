@@ -1,27 +1,3 @@
-# --- Core Trading & Exchange Libraries ---
-pybit
-ccxt
-
-# --- Data Analysis & Math ---
-pandas
-numpy
-
-# --- Telegram & Notifications ---
-python-telegram-bot
-
-# --- Scheduling & Automation ---
-APScheduler
-
-# --- Environment & System ---
-python-dotenv
-aiohttp
-requests
-cryptography
-tqdm
-tzlocal
-
-# --- Visualization (Charts & Performance) ---
-matplotlib
-
-# --- Optional Utilities (safe to include) ---
-pyyaml
+ccxt==4.3.80
+python-dotenv==1.0.1
+requests==2.32.3
