@@ -27,7 +27,6 @@ class SmartStrategy:
         return 100 - (100 / (1 + rs))
 
     def get_signal(self):
-        """ בודק מגמה רב־טווח ואותות משולבים """
         df_1h = self.get_data("1h")
         df_4h = self.get_data("4h")
 
@@ -46,13 +45,12 @@ class SmartStrategy:
         ema9 = last["EMA_9"]
         ema21 = last["EMA_21"]
 
-        # כניסה חכמה לפי מגמה כללית
         if trend_up and rsi < 40 and ema9 > ema21:
-            logging.info("🟢 אישור רב־טווח לקנייה")
+            logging.info("🟢 אישור רב-טווח לקנייה")
             return "BUY"
 
         elif trend_down and rsi > 60 and ema9 < ema21:
-            logging.info("🔴 אישור רב־טווח למכירה")
+            logging.info("🔴 אישור רב-טווח למכירה")
             return "SELL"
 
         else:
