@@ -1,64 +1,71 @@
+import numpy as np
 import pandas as pd
 import logging
 
 class SmartTrendStrategy:
-    """
-    אסטרטגיה חכמה:
-    - מזהה מגמה עם EMA 9 ו-EMA 21
-    - משתמשת ב-RSI כדי לדעת אם זה דיפ או המשך מגמה
-    """
-
-    def __init__(self, exchange, symbol="BTC/USDT"):
-        self.exchange = exchange
+    def __init__(self, symbol="BTC/USDT", timeframe="15m", limit=200):
         self.symbol = symbol
+        self.timeframe = timeframe
+        self.limit = limit
 
-    def get_data(self, timeframe="1h", limit=200):
-        candles = self.exchange.client.fetch_ohlcv(self.symbol, timeframe, limit=limit)
-        df = pd.DataFrame(candles, columns=["time", "open", "high", "low", "close", "volume"])
-        df["close"] = df["close"].astype(float)
-        return df
-
-    def ema(self, data, period):
-        return data["close"].ewm(span=period, adjust=False).mean()
-
-    def rsi(self, data, period=14):
-        delta = data["close"].diff()
-        gain = delta.clip(lower=0)
-        loss = -delta.clip(upper=0)
-        avg_gain = gain.rolling(period).mean()
-        avg_loss = loss.rolling(period).mean()
+    def calculate_rsi(self, closes, period=14):
+        """ מחשב RSI לפי סגירות נרות """
+        delta = np.diff(closes)
+        gain = np.where(delta > 0, delta, 0)
+        loss = np.where(delta < 0, -delta, 0)
+        avg_gain = pd.Series(gain).rolling(period).mean()
+        avg_loss = pd.Series(loss).rolling(period).mean()
         rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
+        rsi = 100 - (100 / (1 + rs))
+        return rsi.values
 
-    def get_signal(self):
-        df = self.get_data("1h")
-        df["EMA_9"] = self.ema(df, 9)
-        df["EMA_21"] = self.ema(df, 21)
-        df["RSI"] = self.rsi(df)
-        last = df.iloc[-1]
+    def calculate_ema(self, closes, period=20):
+        """ מחשב ממוצע נע אקספוננציאלי """
+        return pd.Series(closes).ewm(span=period, adjust=False).mean().values
 
-        rsi = last["RSI"]
-        ema9 = last["EMA_9"]
-        ema21 = last["EMA_21"]
+    def generate_signal(self, candles):
+        """
+        מחזיר אות קנייה/מכירה חכם בהתאם ל־RSI, EMA ונפח המסחר.
+        """
+        try:
+            closes = np.array([c[4] for c in candles], dtype=float)
+            volumes = np.array([c[5] for c in candles], dtype=float)
 
-        trend_up = ema9 > ema21
-        trend_down = ema9 < ema21
+            # חישוב RSI ו־EMA
+            rsi = self.calculate_rsi(closes)
+            ema_fast = self.calculate_ema(closes, period=20)
+            ema_slow = self.calculate_ema(closes, period=50)
 
-        # קנייה בירידה בתוך מגמה עולה
-        if trend_up and rsi < 30:
-            logging.info("💎 Buy the Dip Signal – מגמה חיובית, מחיר בירידה חדה")
-            return "BUY_DIP"
+            # פילטר מגמה חכם: מזהה עלייה/ירידה אמיתית
+            trend_strength = ema_fast[-1] - ema_slow[-1]
+            avg_volume = np.mean(volumes[-20:])
+            current_volume = volumes[-1]
 
-        # קנייה עם המשך המגמה
-        elif trend_up and 45 <= rsi <= 60:
-            logging.info("🟢 Trend Buy Signal – כניסה עם כיוון המגמה")
-            return "BUY_TREND"
+            logging.info(f"📊 {self.symbol} | RSI: {rsi[-1]:.2f} | Trend: {trend_strength:.3f} | Volume: {current_volume/avg_volume:.2f}x")
 
-        # מכירה כשהמגמה יורדת וה-RSI גבוה
-        elif trend_down and rsi > 65:
-            logging.info("🔴 Sell Signal – מגמה שלילית מתחזקת")
-            return "SELL"
+            # תנאים לקנייה
+            if (
+                rsi[-1] > 55
+                and ema_fast[-1] > ema_slow[-1]
+                and trend_strength > 0
+                and current_volume > avg_volume * 1.1
+            ):
+                logging.info("✅ אות קנייה מזוהה (BUY)")
+                return "BUY"
 
-        else:
-            logging.info("⚪ אין איתות ברור – המתנה")
+            # תנאים למכירה
+            elif (
+                rsi[-1] < 45
+                and ema_fast[-1] < ema_slow[-1]
+                and trend_strength < 0
+                and current_volume > avg_volume * 1.1
+            ):
+                logging.info("❌ אות מכירה מזוהה (SELL)")
+                return "SELL"
+
+            # אין אות ברור
+            return None
+
+        except Exception as e:
+            logging.error(f"שגיאה באסטרטגיה: {e}")
             return None
