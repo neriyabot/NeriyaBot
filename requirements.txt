@@ -1,5 +1,5 @@
 ccxt==4.3.83
-pandas==2.0.3
+pandas==2.2.3
 numpy==1.26.4
 matplotlib==3.8.2
 python-telegram-bot==13.15
