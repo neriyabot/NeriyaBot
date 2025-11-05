@@ -26,10 +26,20 @@ class Exchange:
 
         logging.info(f"✅ Connected to Bybit ({self.mode} mode)")
 
-    def get_balance(self):
+    def buy(self, symbol, amount):
         try:
-            balance = self.client.fetch_balance()
-            return balance
+            order = self.client.create_market_buy_order(symbol, amount)
+            logging.info(f"✅ BUY order executed: {order}")
+            return order
         except Exception as e:
-            logging.error(f"❌ Error fetching balance: {e}")
+            logging.error(f"❌ Error executing BUY order: {e}")
+            return None
+
+    def sell(self, symbol, amount):
+        try:
+            order = self.client.create_market_sell_order(symbol, amount)
+            logging.info(f"✅ SELL order executed: {order}")
+            return order
+        except Exception as e:
+            logging.error(f"❌ Error executing SELL order: {e}")
             return None
