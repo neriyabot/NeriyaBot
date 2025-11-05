@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from exchange import Exchange
-from strategies.rsi_ema_strategy import RSI_EMA_Strategy
+from strategies.smart_strategy import SmartStrategy
 from utils.telegram_notifier import send_trade_alert
 from utils.risk import RiskManager
 from utils.position_size import PositionSizer
@@ -9,48 +9,37 @@ from utils.position_size import PositionSizer
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 async def main():
-    logging.info("🚀 NeriyaBot Ultra+ v4 Adaptive Risk & Position Sizing Mode הופעל...")
+    logging.info("🚀 NeriyaBot Ultra+ v5 Smart Edition הופעל...")
 
-    # חיבור ל-Bybit במצב DEMO
     exchange = Exchange(mode="DEMO")
-
-    # הגדרת האסטרטגיה והניהול
-    strategy = RSI_EMA_Strategy(exchange, symbol="BTC/USDT", timeframe="1h")
+    strategy = SmartStrategy(exchange, symbol="BTC/USDT")
     risk = RiskManager(exchange, symbol="BTC/USDT", atr_period=14, atr_mult_sl=1.5, atr_mult_tp=3.0)
-    sizer = PositionSizer(exchange, symbol="BTC/USDT", risk_percent=1.0)  # סיכון 1% מהיתרה לכל עסקה
+    sizer = PositionSizer(exchange, symbol="BTC/USDT", risk_percent=1.0)
 
-    # הפעלת מנגנון ניהול סיכונים ברקע
     asyncio.create_task(risk.monitor_trade())
-
-    await send_trade_alert("✅ NeriyaBot Ultra+ v4 הופעל ומוכן – כולל ATR ו-Position Size חכם")
+    await send_trade_alert("✅ NeriyaBot Ultra+ v5 Smart Edition מחובר ל-Bybit Testnet ומוכן לפעולה")
 
     while True:
         try:
-            signal = strategy.generate_signal()
+            signal = strategy.get_signal()
 
             if signal == "BUY":
-                # מקבל מחיר כניסה נוכחי
-                current_price = exchange.client.fetch_ticker("BTC/USDT")["last"]
-
-                # מחשב Stop-Loss לפי ATR נוכחי
+                price = exchange.client.fetch_ticker("BTC/USDT")["last"]
                 atr = risk.get_atr()
-                stop_loss_price = current_price - (atr * 1.5)
+                stop_loss = price - (atr * 1.5)
+                qty = sizer.calculate_position_size(price, stop_loss)
 
-                # מחשב גודל עסקה לפי אחוז סיכון
-                qty = sizer.calculate_position_size(current_price, stop_loss_price)
-
-                # ביצוע עסקה
                 order = exchange.buy("BTC/USDT", qty)
                 if order:
-                    risk.open_trade("BUY", current_price)
-                    await send_trade_alert(f"🟢 עסקת קנייה נפתחה ({qty} BTC) במחיר {current_price}")
+                    risk.open_trade("BUY", price)
+                    await send_trade_alert(f"🟢 קנייה חכמה נפתחה במחיר {price} עם גודל עסקה {qty} BTC")
 
             elif signal == "SELL":
                 exchange.sell("BTC/USDT", 0.001)
-                await send_trade_alert("🔴 עסקת מכירה בוצעה על BTC/USDT")
+                await send_trade_alert("🔴 מכירה חכמה בוצעה לפי אות רב-טווח")
                 risk.active_trade = None
 
-            await asyncio.sleep(300)  # 5 דקות בין סריקות
+            await asyncio.sleep(300)
         except Exception as e:
             logging.error(f"❌ שגיאה בלולאה הראשית: {e}")
             await asyncio.sleep(30)
