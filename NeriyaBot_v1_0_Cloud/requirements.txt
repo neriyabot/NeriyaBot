@@ -1,3 +1,5 @@
+--only-binary=:all:
+
 ccxt==4.3.83
 pandas==2.2.2
 numpy==1.26.4
