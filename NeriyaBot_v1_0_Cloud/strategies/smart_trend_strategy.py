@@ -1,21 +1,20 @@
 import pandas as pd
-import numpy as np
 import logging
 
 class SmartTrendStrategy:
     """
-    אסטרטגיה חכמה שמזהה מתי לקנות ירידה (Buy the Dip)
-    ומתי להצטרף למגמה (Trend Buy)
+    אסטרטגיה חכמה:
+    - מזהה מגמה עם EMA 9 ו-EMA 21
+    - משתמשת ב-RSI כדי לדעת אם זה דיפ או המשך מגמה
     """
 
     def __init__(self, exchange, symbol="BTC/USDT"):
         self.exchange = exchange
         self.symbol = symbol
-        self.position = None
 
     def get_data(self, timeframe="1h", limit=200):
         candles = self.exchange.client.fetch_ohlcv(self.symbol, timeframe, limit=limit)
-        df = pd.DataFrame(candles, columns=["time","open","high","low","close","volume"])
+        df = pd.DataFrame(candles, columns=["time", "open", "high", "low", "close", "volume"])
         df["close"] = df["close"].astype(float)
         return df
 
@@ -42,25 +41,24 @@ class SmartTrendStrategy:
         ema9 = last["EMA_9"]
         ema21 = last["EMA_21"]
 
-        # זיהוי מגמה כללית
         trend_up = ema9 > ema21
         trend_down = ema9 < ema21
 
-        # --- BUY THE DIP ---
+        # קנייה בירידה בתוך מגמה עולה
         if trend_up and rsi < 30:
             logging.info("💎 Buy the Dip Signal – מגמה חיובית, מחיר בירידה חדה")
             return "BUY_DIP"
 
-        # --- TREND BUY ---
+        # קנייה עם המשך המגמה
         elif trend_up and 45 <= rsi <= 60:
             logging.info("🟢 Trend Buy Signal – כניסה עם כיוון המגמה")
             return "BUY_TREND"
 
-        # --- SELL SIGNAL ---
+        # מכירה כשהמגמה יורדת וה-RSI גבוה
         elif trend_down and rsi > 65:
             logging.info("🔴 Sell Signal – מגמה שלילית מתחזקת")
             return "SELL"
 
         else:
-            logging.info("⚪ אין איתות ברור – ממתין")
+            logging.info("⚪ אין איתות ברור – המתנה")
             return None
