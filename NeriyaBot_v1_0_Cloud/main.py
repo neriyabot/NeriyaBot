@@ -8,13 +8,15 @@ from utils.risk import RiskManager
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 async def main():
-    logging.info("🚀 NeriyaBot Ultra+ v2 עם ניהול סיכונים הופעל...")
+    logging.info("🚀 NeriyaBot Ultra+ v3 Adaptive Risk Mode הופעל...")
     exchange = Exchange(mode="DEMO")
     strategy = RSI_EMA_Strategy(exchange, symbol="BTC/USDT", timeframe="1h")
-    risk = RiskManager(exchange, symbol="BTC/USDT", stop_loss_pct=2.0, take_profit_pct=4.0)
+    risk = RiskManager(exchange, symbol="BTC/USDT", atr_period=14, atr_mult_sl=1.5, atr_mult_tp=3.0)
 
+    # הפעלת מנגנון ניהול סיכונים ברקע
     asyncio.create_task(risk.monitor_trade())
-    await send_trade_alert("✅ NeriyaBot Ultra+ v2 מחובר ומוכן – כולל Stop-Loss / Take-Profit")
+
+    await send_trade_alert("✅ NeriyaBot Ultra+ v3 פעיל ומחובר ל-Testnet עם ניהול סיכונים חכם (ATR)")
 
     while True:
         try:
@@ -32,7 +34,7 @@ async def main():
                 await send_trade_alert("🔴 עסקת מכירה בוצעה על BTC/USDT")
                 risk.active_trade = None
 
-            await asyncio.sleep(300)  # 5 דקות
+            await asyncio.sleep(300)  # 5 דקות בין סריקות
         except Exception as e:
             logging.error(f"❌ שגיאה בלולאה הראשית: {e}")
             await asyncio.sleep(30)
